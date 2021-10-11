@@ -22,18 +22,30 @@ const client = new ApolloClient({
 });
 
 
-
 const GET_ORGANIZATION = gql`
-  query getOrganization ($organization:String!) {
+  fragment repositoryNodes on Repository {
+    name
+    url
+  }
+
+  query getOrganization($organization: String!, $cursor: String) {
     organization(login: $organization) {
+      id
       name
       url
-      repositories(first: 5) {
+      repositories(
+        first: 5
+        orderBy: { field: STARGAZERS, direction: ASC }
+        after: $cursor
+      ) {
         edges {
           node {
-            name
-            url
+            ...repositoryNodes
           }
+        }
+        pageInfo {
+          endCursor
+          hasNextPage
         }
       }
     }
@@ -43,6 +55,20 @@ const GET_ORGANIZATION = gql`
 client
   .query({
     query: GET_ORGANIZATION,
-    variables: { organization: "the-road-to-learn-react" },
+    variables: { organization: 'the-road-to-learn-react', cursor: null },
   })
-  .then(console.log);
+  .then( ( { data } ) =>
+  { 
+    const repositories = data?.organization?.repositories;
+    const endCursor = repositories?.pageInfo?.endCursor;
+    
+    client
+      .query({
+        query: GET_ORGANIZATION,
+        variables: {
+          organization: 'the-road-to-learn-react',
+          cursor: endCursor,
+        },
+      })
+      .then(({ data }) => data?.organization?.repositories?.pageInfo );
+  });
